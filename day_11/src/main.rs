@@ -3,13 +3,23 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 
+const PARSE_INPUT_LINES: [&str; 6] = [
+    "Monkey {i32}",
+    "  Starting items: {Vec<i32>}",
+    "  Operation: new = old {String} {i32}",
+    "  Test: divisible by {i32}",
+    "    If true: throw to monkey {i32}",
+    "    If false: throw to monkey {i32}",
+];
+
+#[derive(Debug)]
 enum Operation {
+    None,
     Add(i32),
-    Double,
     Mult(i32),
-    Square,
 }
 
+#[derive(Debug)]
 struct Monkey {
     items: Vec<i32>,
     op: Operation,
@@ -18,34 +28,69 @@ struct Monkey {
     false_monkey_idx: usize,
 }
 
-impl Monkey {
-    fn new(monkey_data: String) -> Self {
-        println!("{monkey_data}");
-        let parse_string: String = r#"Monkey {i32}:\n
-        Starting items: {String}\n
-        Operation: new = old {String} {String}\n
-        Test: divisible by {i32}\n
-          If true: throw to monkey {i32}\n
-          If false: throw to monkey {i32}"#
-            .to_string();
+fn parse_item_list(str_item_list_unclean: String, item_list: &mut Vec<i32>) {
+    let str_item_list = str_item_list_unclean
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect::<String>();
 
-        println!("{parse_string}");
-        let parsed = sscanf::sscanf!(
-            monkey_data,
-            "Monkey {i32}:\n
-   Starting items: {String}\n
-  Operation: new = old {String} {String}\n
-  Test: divisible by {i32}\n
-    If true: throw to monkey {i32}\n
-    If false: throw to monkey {i32}"
-        );
-        println!("{:?}", parsed);
+    let str_item_list_split = str_item_list.split(',');
+
+    for str_item in str_item_list_split {
+        let int_item: i32 = str_item.parse().unwrap();
+        item_list.push(int_item)
+    }
+}
+
+impl Monkey {
+    fn new(monkey_data_full: String) -> Self {
+        let monkey_data = monkey_data_full.split("\n");
+
+        let mut item_list: Vec<i32> = Vec::new();
+        let mut operation: Operation = Operation::None;
+        let mut div_value: i32 = 0;
+        let mut true_monkey_throw: usize = 0;
+        let mut false_monkey_throw: usize = 0;
+
+        for monkey_line in monkey_data {
+            let parsed = sscanf::sscanf!(monkey_line, "  Starting items: {String}");
+            if let Ok(str_item_list_unclean) = parsed {
+                parse_item_list(str_item_list_unclean, &mut item_list);
+                continue;
+            }
+
+            let parsed = sscanf::sscanf!(monkey_line, "  Operation: new = old {char} {i32}");
+            if let Ok((op, count)) = parsed {
+                operation = match op {
+                    '*' => Operation::Mult(count),
+                    '+' => Operation::Add(count),
+                    _ => Operation::None,
+                };
+                continue;
+            }
+
+            let parsed = sscanf::sscanf!(monkey_line, "  Test: divisible by {i32}");
+            if let Ok(div_test_val) = parsed {
+                div_value = div_test_val;
+                continue;
+            }
+
+            let parsed = sscanf::sscanf!(monkey_line, "    If {bool}: throw to monkey {usize}");
+            if let Ok((case, monkey_to)) = parsed {
+                if case {
+                    true_monkey_throw = monkey_to
+                } else {
+                    false_monkey_throw = monkey_to
+                }
+                continue;
+            }
+        }
         Monkey {
-            items: Vec::new(),
-            op: Operation::Double,
-            div_test: 0,
-            true_monkey_idx: 0,
-            false_monkey_idx: 0,
+            items: item_list,
+            op: operation,
+            div_test: div_value,
+            true_monkey_idx: true_monkey_throw,
+            false_monkey_idx: false_monkey_throw,
         }
     }
 }
@@ -86,6 +131,9 @@ fn main() {
         }
         for monkey in monkey_lines {
             monkeys.push(Monkey::new(monkey))
+        }
+        for monkey in monkeys {
+            println!("{:?}", monkey)
         }
     }
 }
